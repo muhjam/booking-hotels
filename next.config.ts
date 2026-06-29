@@ -1,14 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  async rewrites() {
-    return [
-      {
-        source: '/api/mcp/:path*',
-        destination: 'http://localhost:3001/:path*',
-      },
-    ];
-  },
+  transpilePackages: ["@modelcontextprotocol/sdk"],
 };
 
 export default nextConfig;
