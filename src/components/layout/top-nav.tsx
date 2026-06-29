@@ -34,6 +34,15 @@ export default function TopNav({ isAdmin = false }: { isAdmin?: boolean }) {
               >
                 My Bookings
               </Link>
+              <Link
+                href="/settings"
+                className={cn(
+                  "text-sm transition-all",
+                  pathname === '/settings' ? "text-primary border-b-2 border-primary pb-1" : "text-on-surface-variant hover:text-primary"
+                )}
+              >
+                Settings
+              </Link>
               <Link href="#" className="text-sm text-on-surface-variant hover:text-primary transition-all">Support</Link>
             </nav>
           )}

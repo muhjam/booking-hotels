@@ -16,6 +16,7 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   password      String    @default("Password123%")
+  apiKey        String?   @unique
   bookings      Booking[]
   oauthTokens   OAuthToken[]
 }

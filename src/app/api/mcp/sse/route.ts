@@ -16,6 +16,17 @@ export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const userId = await getUserIdFromToken(authHeader);
 
+  // If no authorization is provided, return 401 to trigger OAuth discovery in ChatGPT
+  if (!authHeader) {
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://booking-hotels-three.vercel.app";
+    return new NextResponse("Unauthorized", {
+      status: 401,
+      headers: {
+        "WWW-Authenticate": `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`,
+      },
+    });
+  }
+
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
   const encoder = new TextEncoder();
