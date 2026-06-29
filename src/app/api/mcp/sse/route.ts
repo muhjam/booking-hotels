@@ -17,6 +17,34 @@ const activeServers = new Map<string, Server>();
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const userId = await getUserIdFromToken(authHeader);
+
+  // Pre-check for protected tools before passing to SDK
+  try {
+    const body = await req.clone().json();
+    if (body.method === "tools/call") {
+      const toolName = body.params?.name;
+      if (PROTECTED_TOOLS.includes(toolName) && !userId) {
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://booking-hotels-three.vercel.app";
+        return new NextResponse(JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          error: {
+            code: 401,
+            message: "Unauthorized",
+            data: { login_url: `${baseUrl}/oauth/authorize` }
+          }
+        }), {
+          status: 401,
+          headers: {
+            "Content-Type": "application/json",
+            "WWW-Authenticate": `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`,
+          },
+        });
+      }
+    }
+  } catch (e) {
+    // Ignore parse errors, let SDK handle it
+  }
   
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: () => crypto.randomUUID(),
@@ -38,8 +66,7 @@ export async function POST(req: NextRequest) {
       const currentUserId = await getUserIdFromToken(currentAuthHeader);
 
       if (PROTECTED_TOOLS.includes(toolName) && !currentUserId) {
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://booking-hotels-three.vercel.app";
-        throw new Error(`UNAUTHORIZED: Please login at ${baseUrl}/oauth/authorize`);
+        throw new Error(`UNAUTHORIZED: Please login`);
       }
 
       return await handleToolCall(toolName, request.params.arguments, currentUserId || undefined);
@@ -54,6 +81,16 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  const accept = req.headers.get("accept") || "";
+  
+  // If accessed via browser (not asking for event-stream), return a friendly message
+  if (!accept.includes("text/event-stream")) {
+    return new NextResponse("Hotels MCP Server (Streamable HTTP) is active. Please use an MCP client to connect.", {
+      status: 200,
+      headers: { "Content-Type": "text/plain" }
+    });
+  }
+
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: () => crypto.randomUUID(),
   });
