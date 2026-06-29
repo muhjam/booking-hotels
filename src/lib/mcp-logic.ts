@@ -28,6 +28,7 @@ export async function handleToolCall(name: string, args: any, userId?: string) {
       const { query } = args;
       const hotels = await prisma.hotel.findMany({
         where: {
+          status: 'OPERATIONAL',
           OR: [
             { name: { contains: query, mode: 'insensitive' } },
             { location: { contains: query, mode: 'insensitive' } },
@@ -35,6 +36,16 @@ export async function handleToolCall(name: string, args: any, userId?: string) {
         },
       });
       return { content: [{ type: "text", text: JSON.stringify(hotels, null, 2) }] };
+    }
+
+    case "list_available_hotels": {
+      const hotels = await prisma.hotel.findMany({
+        where: { status: 'OPERATIONAL' },
+        orderBy: { rating: 'desc' }
+      });
+      return {
+        content: [{ type: "text", text: JSON.stringify(hotels, null, 2) }],
+      };
     }
 
     case "book_hotel": {
@@ -92,12 +103,17 @@ export const toolDefinitions = [
   },
   {
     name: "search_hotels",
-    description: "Search for hotels",
+    description: "Search for hotels by name or location",
     inputSchema: {
       type: "object",
       properties: { query: { type: "string" } },
       required: ["query"],
     },
+  },
+  {
+    name: "list_available_hotels",
+    description: "List all available (operational) hotels",
+    inputSchema: { type: "object", properties: {} },
   },
   {
     name: "book_hotel",

@@ -86,7 +86,6 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   const accept = req.headers.get("accept") || "";
-  const authHeader = req.headers.get("authorization");
   
   // If accessed via browser (not asking for event-stream), return a friendly message
   if (!accept.includes("text/event-stream")) {
@@ -96,18 +95,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Discovery: If no token is provided, return 401 with discovery info
-  if (!authHeader) {
-    const url = new URL(req.url);
-    const baseUrl = `${url.protocol}//${url.host}`;
-    return new NextResponse("Unauthorized", {
-      status: 401,
-      headers: {
-        "WWW-Authenticate": `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`,
-      },
-    });
-  }
-
+  // Allow initial connection without token (for public tools and discovery)
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
   });
