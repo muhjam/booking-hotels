@@ -57,7 +57,36 @@ function AuthorizeContent() {
     }
   };
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!clientId || !redirectUri) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full bg-white p-8 rounded-xl shadow-lg border border-red-100">
+          <h2 className="text-red-600 text-xl font-bold">Invalid Request</h2>
+          <p className="mt-2 text-gray-600">Missing client_id or redirect_uri parameters.</p>
+          <div className="mt-4 p-3 bg-gray-100 rounded text-xs font-mono break-all">
+            URL: {typeof window !== 'undefined' ? window.location.search : ''}
+          </div>
+          <button 
+            onClick={() => router.push('/')}
+            className="mt-4 w-full py-2 bg-gray-100 rounded-md hover:bg-gray-200"
+          >
+            Go Home
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
