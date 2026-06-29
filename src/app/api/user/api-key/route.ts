@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { crypto } from "node:crypto";
+import { randomBytes } from "node:crypto";
 
 export async function GET(req: NextRequest) {
   // In a real app, you'd get the user ID from the session/cookie
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const apiKey = "hk_" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  const apiKey = "hk_" + randomBytes(16).toString('hex');
 
   const user = await prisma.user.update({
     where: { id: userId },
