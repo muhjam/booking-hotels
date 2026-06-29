@@ -22,14 +22,16 @@ model User {
 }
 
 model OAuthToken {
-  id           String   @id @default(cuid())
-  userId       String
-  code         String?  @unique
-  accessToken  String?  @unique
-  refreshToken String?  @unique
-  expiresAt    DateTime?
-  createdAt    DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id])
+  id                  String   @id @default(cuid())
+  userId              String
+  code                String?  @unique
+  accessToken         String?  @unique
+  refreshToken        String?  @unique
+  codeChallenge       String?
+  codeChallengeMethod String?
+  expiresAt           DateTime?
+  createdAt           DateTime @default(now())
+  user                User     @relation(fields: [userId], references: [id])
 }
 
 model Hotel {

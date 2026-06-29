@@ -13,6 +13,9 @@ function AuthorizeContent() {
   const clientId = searchParams.get("client_id");
   const redirectUri = searchParams.get("redirect_uri");
   const state = searchParams.get("state");
+  const responseType = searchParams.get("response_type");
+  const codeChallenge = searchParams.get("code_challenge");
+  const codeChallengeMethod = searchParams.get("code_challenge_method");
 
   useEffect(() => {
     if (!user) {
@@ -32,6 +35,8 @@ function AuthorizeContent() {
         body: JSON.stringify({
           userId: user.id,
           clientId,
+          codeChallenge,
+          codeChallengeMethod,
         }),
       });
 
@@ -42,7 +47,7 @@ function AuthorizeContent() {
         if (state) url.searchParams.set("state", state);
         window.location.href = url.toString();
       } else {
-        alert("Failed to authorize");
+        alert("Failed to authorize: " + (data.error || "Unknown error"));
       }
     } catch (error) {
       console.error(error);
