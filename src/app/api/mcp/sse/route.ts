@@ -18,36 +18,10 @@ export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const userId = await getUserIdFromToken(authHeader);
 
-  // Pre-check for protected tools before passing to SDK
-  try {
-    const body = await req.clone().json();
-    if (body.method === "tools/call") {
-      const toolName = body.params?.name;
-      if (PROTECTED_TOOLS.includes(toolName) && !userId) {
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://booking-hotels-three.vercel.app";
-        return new NextResponse(JSON.stringify({
-          jsonrpc: "2.0",
-          id: body.id,
-          error: {
-            code: 401,
-            message: "Unauthorized",
-            data: { login_url: `${baseUrl}/oauth/authorize` }
-          }
-        }), {
-          status: 401,
-          headers: {
-            "Content-Type": "application/json",
-            "WWW-Authenticate": `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`,
-          },
-        });
-      }
-    }
-  } catch (e) {
-    // Ignore parse errors, let SDK handle it
-  }
-  
+  // 1. Use Stateless Transport (sessionIdGenerator: undefined)
+  // This is CRITICAL for Vercel/Serverless to avoid "Server not initialized" errors
   const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: () => crypto.randomUUID(),
+    sessionIdGenerator: undefined,
   });
 
   const server = new Server(
@@ -59,17 +33,17 @@ export async function POST(req: NextRequest) {
     tools: toolDefinitions,
   }));
 
-  server.setRequestHandler(CallToolRequestSchema, async (request, extra: any) => {
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
     try {
       const toolName = request.params.name;
-      const currentAuthHeader = extra?.requestInfo?.headers?.authorization || authHeader;
-      const currentUserId = await getUserIdFromToken(currentAuthHeader);
-
-      if (PROTECTED_TOOLS.includes(toolName) && !currentUserId) {
-        throw new Error(`UNAUTHORIZED: Please login`);
+      
+      if (PROTECTED_TOOLS.includes(toolName) && !userId) {
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://booking-hotels-three.vercel.app";
+        // Return a clear error message that triggers the UI to show login
+        throw new Error(`UNAUTHORIZED: Please login at ${baseUrl}/oauth/authorize`);
       }
 
-      return await handleToolCall(toolName, request.params.arguments, currentUserId || undefined);
+      return await handleToolCall(toolName, request.params.arguments, userId || undefined);
     } catch (error: any) {
       return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
     }
@@ -77,22 +51,22 @@ export async function POST(req: NextRequest) {
 
   await server.connect(transport);
 
+  // 2. Handle the request - in stateless mode, this will process the message immediately
   return transport.handleRequest(req);
 }
 
 export async function GET(req: NextRequest) {
   const accept = req.headers.get("accept") || "";
   
-  // If accessed via browser (not asking for event-stream), return a friendly message
   if (!accept.includes("text/event-stream")) {
-    return new NextResponse("Hotels MCP Server (Streamable HTTP) is active. Please use an MCP client to connect.", {
+    return new NextResponse("Hotels MCP Server (Stateless) is active.", {
       status: 200,
       headers: { "Content-Type": "text/plain" }
     });
   }
 
   const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: () => crypto.randomUUID(),
+    sessionIdGenerator: undefined,
   });
   return transport.handleRequest(req);
 }
