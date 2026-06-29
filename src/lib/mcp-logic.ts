@@ -1,11 +1,15 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from './prisma';
 
-const prisma = new PrismaClient();
-
-export async function handleToolCall(name: string, args: any) {
-  console.error(`Executing tool: ${name}`);
+export async function handleToolCall(name: string, args: any, userId?: string) {
+  console.error(`Executing tool: ${name} (User: ${userId || 'Anonymous'})`);
   switch (name) {
     case "get_admin_stats": {
+      if (userId) {
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (user?.role !== 'ADMIN') {
+          throw new Error("Unauthorized: Admin role required");
+        }
+      }
       const totalHotels = await prisma.hotel.count();
       const totalBookings = await prisma.booking.count();
       const revenue = await prisma.booking.aggregate({ _sum: { totalPrice: true } });
@@ -44,6 +48,7 @@ export async function handleToolCall(name: string, args: any) {
       const booking = await prisma.booking.create({
         data: {
           hotelId,
+          userId: userId || null,
           guestEmail: email,
           guestName: guestName || "Guest",
           guestPhone: guestPhone || "000",
@@ -60,6 +65,18 @@ export async function handleToolCall(name: string, args: any) {
       return { content: [{ type: "text", text: `Booking success! ID: ${booking.id}. VA: ${vaNumber || 'N/A'}` }] };
     }
 
+    case "get_my_bookings": {
+      if (!userId) {
+        throw new Error("Unauthorized: Login required to see bookings");
+      }
+      const bookings = await prisma.booking.findMany({
+        where: { userId },
+        include: { hotel: true },
+        orderBy: { createdAt: 'desc' }
+      });
+      return { content: [{ type: "text", text: JSON.stringify(bookings, null, 2) }] };
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -68,7 +85,7 @@ export async function handleToolCall(name: string, args: any) {
 export const toolDefinitions = [
   {
     name: "get_admin_stats",
-    description: "Get hotel and booking statistics",
+    description: "Get hotel and booking statistics (Admin only)",
     inputSchema: { type: "object", properties: {} },
   },
   {
@@ -92,5 +109,10 @@ export const toolDefinitions = [
       },
       required: ["hotelId", "email", "paymentMethod"],
     },
+  },
+  {
+    name: "get_my_bookings",
+    description: "Get your current bookings (Requires login)",
+    inputSchema: { type: "object", properties: {} },
   }
 ];

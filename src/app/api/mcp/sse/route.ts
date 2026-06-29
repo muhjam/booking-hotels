@@ -6,12 +6,16 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { handleToolCall, toolDefinitions } from "@/lib/mcp-logic";
+import { getUserIdFromToken } from "@/lib/mcp-auth";
 
 // Global map to store active sessions (Note: In Vercel this only works within the same instance/warm start)
 // For a more robust production setup, use Redis or a similar external store for session management
 const activeTransports = new Map<string, any>();
 
 export async function GET(req: NextRequest) {
+  const authHeader = req.headers.get("authorization");
+  const userId = await getUserIdFromToken(authHeader);
+
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
   const encoder = new TextEncoder();
@@ -43,7 +47,7 @@ export async function GET(req: NextRequest) {
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     try {
-      return await handleToolCall(request.params.name, request.params.arguments);
+      return await handleToolCall(request.params.name, request.params.arguments, userId || undefined);
     } catch (error: any) {
       return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
     }
