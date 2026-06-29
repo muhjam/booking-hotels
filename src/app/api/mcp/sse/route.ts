@@ -1,40 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { handleToolCall, toolDefinitions } from "@/lib/mcp-logic";
+import { handleToolCall, toolDefinitions, PROTECTED_TOOLS } from "@/lib/mcp-logic";
 import { getUserIdFromToken } from "@/lib/mcp-auth";
 
-// Global map to store active sessions (Note: In Vercel this only works within the same instance/warm start)
+export const runtime = "edge";
+
+// Global map to store active sessions (Note: In Vercel Edge this is even more volatile)
 // For a more robust production setup, use Redis or a similar external store for session management
-const activeTransports = new Map<string, any>();
+const activeServers = new Map<string, Server>();
 
-export async function GET(req: NextRequest) {
-  console.log("MCP SSE: New connection request");
+export async function POST(req: NextRequest) {
+  const authHeader = req.headers.get("authorization");
+  const userId = await getUserIdFromToken(authHeader);
   
-  const responseStream = new TransformStream();
-  const writer = responseStream.writable.getWriter();
-  const encoder = new TextEncoder();
-
-  // Create a mock response object that matches what SSEServerTransport expects
-  const mockRes: any = {
-    writeHead: (status: number, headers: any) => {
-      console.log("MCP SSE: writeHead called", status);
-    },
-    write: (chunk: string) => {
-      writer.write(encoder.encode(chunk));
-    },
-    end: () => {
-      console.log("MCP SSE: end called");
-      writer.close();
-    },
-    on: (event: string, callback: any) => {
-      // Handle events if needed
-    }
-  };
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: () => crypto.randomUUID(),
+  });
 
   const server = new Server(
     { name: "hotels-mcp-server", version: "1.0.0" },
@@ -47,32 +33,29 @@ export async function GET(req: NextRequest) {
 
   server.setRequestHandler(CallToolRequestSchema, async (request, extra: any) => {
     try {
-      const authHeader = extra?.requestInfo?.headers?.authorization;
-      const userId = await getUserIdFromToken(authHeader);
-      return await handleToolCall(request.params.name, request.params.arguments, userId || undefined);
+      const toolName = request.params.name;
+      const currentAuthHeader = extra?.requestInfo?.headers?.authorization || authHeader;
+      const currentUserId = await getUserIdFromToken(currentAuthHeader);
+
+      if (PROTECTED_TOOLS.includes(toolName) && !currentUserId) {
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://booking-hotels-three.vercel.app";
+        throw new Error(`UNAUTHORIZED: Please login at ${baseUrl}/oauth/authorize`);
+      }
+
+      return await handleToolCall(toolName, request.params.arguments, currentUserId || undefined);
     } catch (error: any) {
       return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
     }
   });
 
-  const transport = new SSEServerTransport("/api/mcp/messages", mockRes);
-  
-  // Connect server to transport - this will trigger transport.start() and write the endpoint event
   await server.connect(transport);
-  
-  const sessionId = transport.sessionId;
-  console.log("MCP SSE: Session created", sessionId);
 
-  // Store the transport and server for message handling
-  (global as any).mcpTransports = (global as any).mcpTransports || new Map();
-  (global as any).mcpTransports.set(sessionId, transport);
+  return transport.handleRequest(req);
+}
 
-  return new Response(responseStream.readable, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      "Connection": "keep-alive",
-      "X-Accel-Buffering": "no", // Disable buffering for Nginx/Vercel
-    },
+export async function GET(req: NextRequest) {
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: () => crypto.randomUUID(),
   });
+  return transport.handleRequest(req);
 }
