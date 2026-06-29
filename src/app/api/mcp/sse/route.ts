@@ -13,24 +13,22 @@ import { getUserIdFromToken } from "@/lib/mcp-auth";
 const activeTransports = new Map<string, any>();
 
 export async function GET(req: NextRequest) {
-  // Lazy Auth: Allow connection without token. 
-  // Token will be checked in tool calls via headers in POST /api/mcp/messages
-  const authHeader = req.headers.get("authorization");
-  const initialUserId = await getUserIdFromToken(authHeader);
-
-  const { readable, writable } = new TransformStream();
-  const writer = writable.getWriter();
+  console.log("MCP SSE: New connection request");
+  
+  const responseStream = new TransformStream();
+  const writer = responseStream.writable.getWriter();
   const encoder = new TextEncoder();
 
   // Create a mock response object that matches what SSEServerTransport expects
   const mockRes: any = {
     writeHead: (status: number, headers: any) => {
-      // Status and headers are handled by Next.js Response
+      console.log("MCP SSE: writeHead called", status);
     },
     write: (chunk: string) => {
       writer.write(encoder.encode(chunk));
     },
     end: () => {
+      console.log("MCP SSE: end called");
       writer.close();
     },
     on: (event: string, callback: any) => {
@@ -49,10 +47,8 @@ export async function GET(req: NextRequest) {
 
   server.setRequestHandler(CallToolRequestSchema, async (request, extra: any) => {
     try {
-      // Resolve user ID from the headers of the POST request that triggered this tool call
       const authHeader = extra?.requestInfo?.headers?.authorization;
       const userId = await getUserIdFromToken(authHeader);
-      
       return await handleToolCall(request.params.name, request.params.arguments, userId || undefined);
     } catch (error: any) {
       return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
@@ -61,19 +57,22 @@ export async function GET(req: NextRequest) {
 
   const transport = new SSEServerTransport("/api/mcp/messages", mockRes);
   
-  // Connect server to transport
+  // Connect server to transport - this will trigger transport.start() and write the endpoint event
   await server.connect(transport);
   
   const sessionId = transport.sessionId;
+  console.log("MCP SSE: Session created", sessionId);
+
   // Store the transport and server for message handling
   (global as any).mcpTransports = (global as any).mcpTransports || new Map();
   (global as any).mcpTransports.set(sessionId, transport);
 
-  return new Response(readable, {
+  return new Response(responseStream.readable, {
     headers: {
       "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
+      "Cache-Control": "no-cache, no-transform",
       "Connection": "keep-alive",
+      "X-Accel-Buffering": "no", // Disable buffering for Nginx/Vercel
     },
   });
 }

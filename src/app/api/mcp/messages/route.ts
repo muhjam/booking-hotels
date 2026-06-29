@@ -4,6 +4,8 @@ import { getUserIdFromToken } from "@/lib/mcp-auth";
 
 export async function POST(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get("sessionId");
+  console.log("MCP Message: Received request for session", sessionId);
+  
   if (!sessionId) {
     return NextResponse.json({ error: "Session ID is required" }, { status: 400 });
   }
@@ -11,6 +13,7 @@ export async function POST(req: NextRequest) {
   const transport = (global as any).mcpTransports?.get(sessionId);
 
   if (transport) {
+    console.log("MCP Message: Transport found for session", sessionId);
     try {
       const body = await req.json();
       const authHeader = req.headers.get("authorization");
@@ -57,6 +60,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
   } else {
-    return NextResponse.json({ error: `No active session: ${sessionId}` }, { status: 400 });
+    return NextResponse.json({ 
+      error: `No active session: ${sessionId}. This might be due to Vercel's serverless lifecycle. Try connecting again.` 
+    }, { status: 400 });
   }
 }
