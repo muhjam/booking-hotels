@@ -8,7 +8,7 @@ import {
 import { handleToolCall, toolDefinitions, PROTECTED_TOOLS } from "@/lib/mcp-logic";
 import { getUserIdFromToken } from "@/lib/mcp-auth";
 
-export const runtime = "edge";
+// export const runtime = "edge"; // Prisma standard client doesn't support Edge runtime
 
 // Global map to store active sessions (Note: In Vercel Edge this is even more volatile)
 // For a more robust production setup, use Redis or a similar external store for session management
@@ -51,8 +51,13 @@ export async function POST(req: NextRequest) {
 
   await server.connect(transport);
 
-  // 2. Handle the request - in stateless mode, this will process the message immediately
-  return transport.handleRequest(req);
+  // 2. Handle the request
+  const response = await transport.handleRequest(req);
+  
+  // Add headers to prevent buffering in Node.js runtime on Vercel/Nginx
+  response.headers.set("X-Accel-Buffering", "no");
+  
+  return response;
 }
 
 export async function GET(req: NextRequest) {
@@ -68,5 +73,8 @@ export async function GET(req: NextRequest) {
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
   });
-  return transport.handleRequest(req);
+  
+  const response = await transport.handleRequest(req);
+  response.headers.set("X-Accel-Buffering", "no");
+  return response;
 }
