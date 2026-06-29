@@ -1,5 +1,7 @@
 import prisma from './prisma';
 
+export const PROTECTED_TOOLS = ["get_admin_stats", "get_my_bookings", "book_hotel"];
+
 export async function handleToolCall(name: string, args: any, userId?: string) {
   console.error(`Executing tool: ${name} (User: ${userId || 'Anonymous'})`);
   switch (name) {

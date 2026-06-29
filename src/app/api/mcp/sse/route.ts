@@ -13,19 +13,10 @@ import { getUserIdFromToken } from "@/lib/mcp-auth";
 const activeTransports = new Map<string, any>();
 
 export async function GET(req: NextRequest) {
+  // Lazy Auth: Allow connection without token. 
+  // Token will be checked in tool calls via headers in POST /api/mcp/messages
   const authHeader = req.headers.get("authorization");
-  const userId = await getUserIdFromToken(authHeader);
-
-  // If no authorization is provided, return 401 to trigger OAuth discovery in ChatGPT
-  if (!authHeader) {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://booking-hotels-three.vercel.app";
-    return new NextResponse("Unauthorized", {
-      status: 401,
-      headers: {
-        "WWW-Authenticate": `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`,
-      },
-    });
-  }
+  const initialUserId = await getUserIdFromToken(authHeader);
 
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
@@ -56,8 +47,12 @@ export async function GET(req: NextRequest) {
     tools: toolDefinitions,
   }));
 
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler(CallToolRequestSchema, async (request, extra: any) => {
     try {
+      // Resolve user ID from the headers of the POST request that triggered this tool call
+      const authHeader = extra?.requestInfo?.headers?.authorization;
+      const userId = await getUserIdFromToken(authHeader);
+      
       return await handleToolCall(request.params.name, request.params.arguments, userId || undefined);
     } catch (error: any) {
       return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };

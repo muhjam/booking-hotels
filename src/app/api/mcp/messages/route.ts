@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { PROTECTED_TOOLS } from "@/lib/mcp-logic";
+import { getUserIdFromToken } from "@/lib/mcp-auth";
 
 export async function POST(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get("sessionId");
@@ -11,10 +13,32 @@ export async function POST(req: NextRequest) {
   if (transport) {
     try {
       const body = await req.json();
+      const authHeader = req.headers.get("authorization");
+
+      // Check if this is a tool call and if it's protected
+      if (body.method === "tools/call") {
+        const toolName = body.params?.name;
+        if (PROTECTED_TOOLS.includes(toolName)) {
+          const userId = await getUserIdFromToken(authHeader);
+          if (!userId) {
+            const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://booking-hotels-three.vercel.app";
+            return new NextResponse("Unauthorized", {
+              status: 401,
+              headers: {
+                "WWW-Authenticate": `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`,
+              },
+            });
+          }
+        }
+      }
+
       // Mock Express request/response for handlePostMessage
       const mockReq: any = {
         body,
-        query: { sessionId }
+        query: { sessionId },
+        headers: {
+          authorization: authHeader
+        }
       };
       const mockRes: any = {
         status: (code: number) => ({

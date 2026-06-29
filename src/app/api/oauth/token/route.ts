@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { randomBytes } from "node:crypto";
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,9 +34,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid or expired code" }, { status: 400 });
     }
 
-    // Generate access token
-    const accessToken = "at_" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    const refreshToken = "rt_" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    // Generate access token (random 32-byte hex as per message.md)
+    const accessToken = randomBytes(32).toString('hex');
+    const refreshToken = randomBytes(32).toString('hex');
 
     // Update the record with tokens and clear the code
     await prisma.oAuthToken.update({
