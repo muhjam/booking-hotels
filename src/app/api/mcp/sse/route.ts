@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
           status: 401,
           headers: {
             "Content-Type": "application/json",
-            "WWW-Authenticate": `Bearer realm="${baseUrl}", resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`,
+            "WWW-Authenticate": `Bearer realm="Hotels", resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`,
           },
         });
       }
@@ -112,6 +112,12 @@ export async function GET(req: NextRequest) {
   });
   
   const response = await transport.handleRequest(req);
+  
+  const url = new URL(req.url);
+  const baseUrl = `${url.protocol}//${url.host}`;
+  
+  // Tambahkan Link header untuk Discovery otomatis oleh AI Host
+  response.headers.set("Link", `<${baseUrl}/.well-known/oauth-protected-resource>; rel="configuration"`);
   response.headers.set("X-Accel-Buffering", "no");
   return response;
 }
