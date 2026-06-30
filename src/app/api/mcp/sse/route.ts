@@ -34,13 +34,24 @@ export async function POST(req: NextRequest) {
           error: {
             code: 401,
             message: "Unauthorized",
-            data: { login_url: `${baseUrl}/oauth/authorize` }
+            data: { 
+              login_url: `${baseUrl}/oauth/authorize`,
+              // Menambahkan instruksi discovery agar AI Host tahu cara auth
+              auth_instructions: "Please authorize this application to access your data.",
+              oauth_metadata: {
+                issuer: baseUrl,
+                authorization_endpoint: `${baseUrl}/oauth/authorize`,
+                token_endpoint: `${baseUrl}/api/oauth/token`,
+                response_types_supported: ["code"],
+                grant_types_supported: ["authorization_code", "refresh_token"]
+              }
+            }
           }
         }), {
           status: 401,
           headers: {
             "Content-Type": "application/json",
-            "WWW-Authenticate": `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`,
+            "WWW-Authenticate": `Bearer realm="${baseUrl}", resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`,
           },
         });
       }

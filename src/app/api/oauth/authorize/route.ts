@@ -4,9 +4,12 @@ import { randomBytes } from "node:crypto";
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, clientId, codeChallenge, codeChallengeMethod } = await req.json();
+    const body = await req.json();
+    const userId = body.userId;
+    const clientId = body.clientId || "mcp-default-client";
+    const { codeChallenge, codeChallengeMethod } = body;
 
-    if (!userId || !clientId) {
+    if (!userId) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 

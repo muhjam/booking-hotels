@@ -22,6 +22,11 @@ export async function POST(req: NextRequest) {
     let clientId = body.client_id;
     let clientSecret = body.client_secret;
     
+    // Jika tidak ada client_id, gunakan default untuk mempermudah (Plexa style)
+    if (!clientId) {
+      clientId = "mcp-default-client";
+    }
+
     const authHeader = req.headers.get("authorization");
     if (authHeader && authHeader.startsWith("Basic ")) {
       try {
