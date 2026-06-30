@@ -11,44 +11,27 @@ function AuthorizeContent() {
   const [loading, setLoading] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // Debugging state
-  const [debug, setDebug] = useState<string[]>([]);
-  const addLog = (msg: string) => setDebug(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
-
   useEffect(() => {
-    addLog("Authorize page mounted");
     setIsHydrated(true);
-    addLog("Hydration finished");
   }, []);
 
   const clientId = searchParams.get("client_id") || "mcp-default-client";
   const redirectUri = searchParams.get("redirect_uri");
   const state = searchParams.get("state");
-  const responseType = searchParams.get("response_type");
   const codeChallenge = searchParams.get("code_challenge");
   const codeChallengeMethod = searchParams.get("code_challenge_method");
 
   useEffect(() => {
-    if (isHydrated) {
-      addLog(`User status: ${user ? "Logged in (" + user.email + ")" : "Not logged in"}`);
-      if (!user) {
-        addLog("Redirecting to login...");
-        const currentUrl = encodeURIComponent(window.location.href);
-        setTimeout(() => {
-          router.push(`/login?callbackUrl=${currentUrl}`);
-        }, 1000);
-      }
+    if (isHydrated && !user) {
+      const currentUrl = encodeURIComponent(window.location.href);
+      router.push(`/login?callbackUrl=${currentUrl}`);
     }
   }, [isHydrated, user, router]);
 
   const handleAuthorize = async () => {
-    if (!user || !clientId || !redirectUri) {
-      addLog("Cannot authorize: missing user, client_id, or redirect_uri");
-      return;
-    }
+    if (!user || !redirectUri) return;
 
     setLoading(true);
-    addLog("Requesting authorization code...");
     try {
       const res = await fetch("/api/oauth/authorize", {
         method: "POST",
@@ -63,17 +46,14 @@ function AuthorizeContent() {
 
       const data = await res.json();
       if (data.code) {
-        addLog("Code received, redirecting back to ChatGPT...");
         const url = new URL(redirectUri);
         url.searchParams.set("code", data.code);
         if (state) url.searchParams.set("state", state);
         window.location.href = url.toString();
       } else {
-        addLog(`Error from API: ${data.error || "Unknown error"}`);
         alert("Failed to authorize: " + (data.error || "Unknown error"));
       }
-    } catch (error: any) {
-      addLog(`Fetch error: ${error.message}`);
+    } catch (error) {
       console.error(error);
       alert("An error occurred");
     } finally {
@@ -81,12 +61,14 @@ function AuthorizeContent() {
     }
   };
 
-  if (!isHydrated) {
+  if (!isHydrated || (!user && isHydrated)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Initializing...</p>
+          <p className="mt-4 text-gray-600">
+            {!isHydrated ? "Initializing..." : "Redirecting to login..."}
+          </p>
         </div>
       </div>
     );
@@ -100,27 +82,14 @@ function AuthorizeContent() {
             Authorize App
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            The app <span className="font-semibold text-blue-600">{clientId || "Unknown"}</span> wants to access your Hotels account.
+            The app <span className="font-semibold text-blue-600">{clientId}</span> wants to access your Hotels account.
           </p>
         </div>
         
-        {!user ? (
-          <div className="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-100">
-            <p className="text-sm text-yellow-800">You need to be logged in to authorize this app.</p>
-            <button 
-              onClick={() => router.push(`/login?callbackUrl=${encodeURIComponent(window.location.href)}`)}
-              className="mt-4 w-full py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              Go to Login
-            </button>
-          </div>
-        ) : !clientId || !redirectUri ? (
+        {!redirectUri ? (
           <div className="text-center p-4 bg-red-50 rounded-lg border border-red-100">
             <p className="text-sm text-red-800 font-bold">Invalid OAuth Request</p>
-            <p className="text-xs text-red-600 mt-1">Missing client_id or redirect_uri.</p>
-            <div className="mt-4 p-2 bg-gray-100 rounded text-[10px] font-mono break-all text-left">
-              URL: {window.location.search}
-            </div>
+            <p className="text-xs text-red-600 mt-1">Missing redirect_uri.</p>
           </div>
         ) : (
           <div className="mt-8 space-y-4">
@@ -150,15 +119,6 @@ function AuthorizeContent() {
             </div>
           </div>
         )}
-
-        <div className="mt-6 pt-6 border-t border-gray-100">
-          <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">Debug Logs:</p>
-          <div className="bg-gray-900 text-green-400 p-3 rounded-md text-[10px] font-mono h-32 overflow-y-auto">
-            {debug.map((log, i) => (
-              <div key={i}>{log}</div>
-            ))}
-          </div>
-        </div>
 
         {user && (
           <div className="mt-4 text-center">

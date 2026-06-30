@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://booking-hotels-three.vercel.app";
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  const baseUrl = `${url.protocol}//${url.host}`;
   
   return NextResponse.json({
     issuer: `${baseUrl}/`,
