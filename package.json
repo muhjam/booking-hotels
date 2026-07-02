@@ -8,7 +8,9 @@
     "build": "prisma generate && next build",
     "postinstall": "prisma generate",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed": "node prisma/seed.js",
+    "seed:indonesia": "node prisma/seed-indonesia.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

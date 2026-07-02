@@ -1,4 +1,5 @@
 import prisma from './prisma';
+import { Prisma } from '@prisma/client';
 
 export const PROTECTED_TOOLS = ["get_admin_stats", "get_my_bookings", "book_hotel"];
 
@@ -16,27 +17,53 @@ export async function handleToolCall(name: string, args: any, userId?: string) {
       const totalBookings = await prisma.booking.count();
       const revenue = await prisma.booking.aggregate({ _sum: { totalPrice: true } });
       return {
-        content: [{ type: "text", text: JSON.stringify({
-          totalHotels,
-          totalBookings,
-          totalRevenue: revenue._sum.totalPrice || 0,
-        }, null, 2) }],
+        content: [{
+          type: "text", text: JSON.stringify({
+            totalHotels,
+            totalBookings,
+            totalRevenue: revenue._sum.totalPrice || 0,
+          }, null, 2)
+        }],
       };
     }
 
     case "search_hotels": {
-      const { query } = args;
+      const { query, city, maxPrice, minRating } = args;
+
+      // Build OR conditions — search across name, location, AND description
+      const orConditions: Prisma.HotelWhereInput[] = [];
+      if (query) {
+        orConditions.push(
+          { name: { contains: query, mode: 'insensitive' } },
+          { location: { contains: query, mode: 'insensitive' } },
+          { description: { contains: query, mode: 'insensitive' } },
+        );
+      }
+
+      const where: Prisma.HotelWhereInput = { status: 'OPERATIONAL' };
+      if (orConditions.length > 0) where.OR = orConditions;
+      if (city) where.location = { contains: city, mode: 'insensitive' };
+      if (maxPrice) where.price = { lte: parseFloat(maxPrice) };
+      if (minRating) where.rating = { gte: parseFloat(minRating) };
+
       const hotels = await prisma.hotel.findMany({
-        where: {
-          status: 'OPERATIONAL',
-          OR: [
-            { name: { contains: query, mode: 'insensitive' } },
-            { location: { contains: query, mode: 'insensitive' } },
-          ],
-        },
+        where,
+        orderBy: { rating: 'desc' },
+        take: 10,
       });
+
+      if (hotels.length === 0) {
+        return {
+          content: [{
+            type: "text",
+            text: `No hotels found matching "${query}"${city ? ` in ${city}` : ''}. Try a broader keyword like the city name (e.g. "Yogyakarta", "Bali", "Jakarta").`
+          }]
+        };
+      }
+
       return { content: [{ type: "text", text: JSON.stringify(hotels, null, 2) }] };
     }
+
 
     case "list_available_hotels": {
       const hotels = await prisma.hotel.findMany({
@@ -103,13 +130,19 @@ export const toolDefinitions = [
   },
   {
     name: "search_hotels",
-    description: "Search for hotels by name or location",
+    description: "Search for hotels by keyword (searches name, location, and description). Supports optional filters for city, max price, and minimum rating. Use this for natural language queries like 'hotel di Jogja', 'resort bintang 5 di Bali', etc.",
     inputSchema: {
       type: "object",
-      properties: { query: { type: "string" } },
+      properties: {
+        query: { type: "string", description: "Search keyword — can be hotel name, area, landmark, or any descriptive term" },
+        city: { type: "string", description: "Optional: filter by city name (e.g. 'Jakarta', 'Bandung', 'Yogyakarta', 'Bali')" },
+        maxPrice: { type: "string", description: "Optional: maximum price per night in IDR (e.g. '2000000')" },
+        minRating: { type: "string", description: "Optional: minimum rating (e.g. '4.5')" },
+      },
       required: ["query"],
     },
   },
+
   {
     name: "list_available_hotels",
     description: "List all available (operational) hotels",

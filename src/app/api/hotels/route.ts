@@ -1,11 +1,51 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get('search') || '';
+    const location = searchParams.get('location') || '';
+    const minPrice = searchParams.get('minPrice');
+    const maxPrice = searchParams.get('maxPrice');
+    const minRating = searchParams.get('minRating');
+
+    const where: Prisma.HotelWhereInput = {
+      status: 'OPERATIONAL',
+    };
+
+    // Full-text search across name, location, description
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { location: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Filter by location (city keyword)
+    if (location) {
+      where.location = { contains: location, mode: 'insensitive' };
+    }
+
+    // Price range filter
+    if (minPrice || maxPrice) {
+      where.price = {};
+      if (minPrice) where.price.gte = parseFloat(minPrice);
+      if (maxPrice) where.price.lte = parseFloat(maxPrice);
+    }
+
+    // Minimum rating filter
+    if (minRating) {
+      where.rating = { gte: parseFloat(minRating) };
+    }
+
     const hotels = await prisma.hotel.findMany({
-      orderBy: { createdAt: 'desc' },
+      where,
+      orderBy: { rating: 'desc' },
     });
+
     return NextResponse.json(hotels);
   } catch {
     return NextResponse.json({ error: 'Failed to fetch hotels' }, { status: 500 });

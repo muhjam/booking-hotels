@@ -1,13 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchHotels, fetchHotel, createHotel, updateHotel, deleteHotel } from '@/services/api/hotel';
+import { fetchHotels, fetchHotel, createHotel, updateHotel, deleteHotel, HotelFilters } from '@/services/api/hotel';
 import { Hotel } from '@/types';
 
-export const useHotels = () => {
+export const useHotels = (filters?: HotelFilters) => {
   return useQuery({
-    queryKey: ['hotels'],
-    queryFn: fetchHotels,
+    queryKey: ['hotels', filters],
+    queryFn: () => fetchHotels(filters),
   });
 };
+
 
 export const useHotel = (id: string) => {
   return useQuery({
