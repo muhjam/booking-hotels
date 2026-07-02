@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 
 export const PROTECTED_TOOLS = ["get_admin_stats", "get_my_bookings", "book_hotel"];
 
-export async function handleToolCall(name: string, args: any, userId?: string) {
+export async function handleToolCall(name: string, args: any, userId?: string, baseUrl: string = 'http://localhost:3000') {
   console.error(`Executing tool: ${name} (User: ${userId || 'Anonymous'})`);
   switch (name) {
     case "get_admin_stats": {
@@ -61,7 +61,13 @@ export async function handleToolCall(name: string, args: any, userId?: string) {
         };
       }
 
-      return { content: [{ type: "text", text: JSON.stringify(hotels, null, 2) }] };
+      // Tambahkan URL booking agar AI/ChatGPT bisa memberikannya sebagai link ke user
+      const hotelsWithLink = hotels.map(h => ({
+        ...h,
+        bookingUrl: `${baseUrl}/checkout?hotelId=${h.id}`
+      }));
+
+      return { content: [{ type: "text", text: JSON.stringify(hotelsWithLink, null, 2) }] };
     }
 
 
@@ -70,8 +76,14 @@ export async function handleToolCall(name: string, args: any, userId?: string) {
         where: { status: 'OPERATIONAL' },
         orderBy: { rating: 'desc' }
       });
+
+      const hotelsWithLink = hotels.map(h => ({
+        ...h,
+        bookingUrl: `${baseUrl}/checkout?hotelId=${h.id}`
+      }));
+
       return {
-        content: [{ type: "text", text: JSON.stringify(hotels, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(hotelsWithLink, null, 2) }],
       };
     }
 

@@ -7,6 +7,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { handleToolCall, toolDefinitions, PROTECTED_TOOLS } from "@/lib/mcp-logic";
 import { getUserIdFromToken } from "@/lib/mcp-auth";
+import { env } from "@/lib/env";
 
 // export const runtime = "edge"; // Prisma standard client doesn't support Edge runtime
 
@@ -27,14 +28,14 @@ export async function POST(req: NextRequest) {
       if (PROTECTED_TOOLS.includes(toolName) && !userId) {
         const url = new URL(req.url);
         const baseUrl = `${url.protocol}//${url.host}`;
-        
+
         return new NextResponse(JSON.stringify({
           jsonrpc: "2.0",
           id: body.id,
           error: {
             code: 401,
             message: "Unauthorized",
-            data: { 
+            data: {
               login_url: `${baseUrl}/oauth/authorize`,
               // Menambahkan instruksi discovery agar AI Host tahu cara auth
               auth_instructions: "Please authorize this application to access your data.",
@@ -78,7 +79,14 @@ export async function POST(req: NextRequest) {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     try {
       const toolName = request.params.name;
-      return await handleToolCall(toolName, request.params.arguments, userId || undefined);
+      // Capture base URL from next request
+      const url = new URL(req.url);
+
+      // Determine base url purely based on env NEXT_PUBLIC_APP_URL
+      const appUrl = env.NEXT_PUBLIC_APP_URL;
+      const baseUrl = appUrl.replace(/\/$/, "");
+
+      return await handleToolCall(toolName, request.params.arguments, userId || undefined, baseUrl);
     } catch (error: any) {
       return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
     }
@@ -88,16 +96,16 @@ export async function POST(req: NextRequest) {
 
   // 2. Handle the request
   const response = await transport.handleRequest(req);
-  
+
   // Add headers to prevent buffering in Node.js runtime on Vercel/Nginx
   response.headers.set("X-Accel-Buffering", "no");
-  
+
   return response;
 }
 
 export async function GET(req: NextRequest) {
   const accept = req.headers.get("accept") || "";
-  
+
   // If accessed via browser (not asking for event-stream), return a friendly message
   if (!accept.includes("text/event-stream")) {
     return new NextResponse("Hotels MCP Server (Stateless) is active.", {
@@ -110,12 +118,12 @@ export async function GET(req: NextRequest) {
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
   });
-  
+
   const response = await transport.handleRequest(req);
-  
+
   const url = new URL(req.url);
   const baseUrl = `${url.protocol}//${url.host}`;
-  
+
   // Tambahkan Link header untuk Discovery otomatis oleh AI Host
   response.headers.set("Link", `<${baseUrl}/.well-known/oauth-protected-resource>; rel="configuration"`);
   response.headers.set("X-Accel-Buffering", "no");
